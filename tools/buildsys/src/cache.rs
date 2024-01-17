@@ -17,18 +17,26 @@ use buildsys::manifest;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use sha2::{Digest, Sha512};
 use snafu::{ensure, OptionExt, ResultExt};
-use std::env;
 use std::fs::{self, File};
 use std::io::{self, BufWriter};
 use std::path::{Path, PathBuf};
 
-static LOOKASIDE_CACHE: &str = "https://cache.bottlerocket.aws";
+const LOOKASIDE_CACHE: &str = "https://cache.bottlerocket.aws";
 
-pub(crate) struct LookasideCache;
+pub(crate) struct LookasideCache {
+    /// The version string to include in HTTP headers.
+    version: String,
+}
 
 impl LookasideCache {
+    pub(crate) fn new(version: impl AsRef<str>) -> Self {
+        Self {
+            version: version.as_ref().to_string(),
+        }
+    }
+
     /// Fetch files stored out-of-tree and ensure they match the stored hash.
-    pub(crate) fn fetch(files: &[manifest::ExternalFile]) -> Result<Self> {
+    pub(crate) fn fetch(&self, files: &[manifest::ExternalFile]) -> Result<()> {
         for f in files {
             let url_file_name = Self::extract_file_name(&f.url)?;
             let path = &f.path.as_ref().unwrap_or(&url_file_name);
@@ -53,7 +61,7 @@ impl LookasideCache {
 
             // first check the lookaside cache
             let url = format!("{}/{}/{}/{}", LOOKASIDE_CACHE, name, hash, name);
-            match Self::fetch_file(&url, &tmp, hash) {
+            match self.fetch_file(&url, &tmp, hash) {
                 Ok(_) => {
                     fs::rename(&tmp, path)
                         .context(error::ExternalFileRenameSnafu { path: &tmp })?;
@@ -69,26 +77,25 @@ impl LookasideCache {
                 || std::env::var("BUILDSYS_UPSTREAM_SOURCE_FALLBACK") == Ok("true".to_string())
             {
                 println!("Fetching {:?} from upstream source", url_file_name);
-                Self::fetch_file(&f.url, &tmp, hash)?;
+                self.fetch_file(&f.url, &tmp, hash)?;
                 fs::rename(&tmp, path).context(error::ExternalFileRenameSnafu { path: &tmp })?;
             }
         }
 
-        Ok(Self)
+        Ok(())
     }
 
     /// Retrieves a file from the specified URL and write it to the given path,
     /// then verifies the contents against the SHA-512 hash provided.
-    fn fetch_file<P: AsRef<Path>>(url: &str, path: P, hash: &str) -> Result<()> {
+    fn fetch_file<P: AsRef<Path>>(&self, url: &str, path: P, hash: &str) -> Result<()> {
         let path = path.as_ref();
-
-        let version = Self::getenv("BUILDSYS_VERSION_FULL")?;
 
         let mut headers = HeaderMap::new();
         headers.insert(
             USER_AGENT,
             HeaderValue::from_str(&format!(
-                "Bottlerocket buildsys {version} (https://github.com/bottlerocket-os/bottlerocket)"
+                "Bottlerocket buildsys {} (https://github.com/bottlerocket-os/bottlerocket)",
+                self.version
             ))
             .unwrap_or(HeaderValue::from_static(
                 "Bottlerocket buildsys (https://github.com/bottlerocket-os/bottlerocket)",
@@ -120,10 +127,6 @@ impl LookasideCache {
                 Err(e)
             }
         }
-    }
-
-    fn getenv(var: &str) -> Result<String> {
-        env::var(var).context(error::EnvironmentSnafu { var: (var) })
     }
 
     fn extract_file_name(url: &str) -> Result<PathBuf> {
