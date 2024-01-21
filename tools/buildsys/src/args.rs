@@ -5,6 +5,7 @@ of its input arguments from environment variables.
 
 !*/
 
+use buildsys::manifest::SupportedArch;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -54,10 +55,10 @@ impl Command {
 #[derive(Debug, Parser)]
 pub(crate) struct Common {
     #[arg(long, env = "BUILDSYS_ARCH")]
-    pub(crate) arch: String,
+    pub(crate) arch: SupportedArch,
 
     #[arg(long, env = "BUILDSYS_OUTPUT_DIR")]
-    pub(crate) output_dir: PathBuf,
+    pub(crate) image_arch_variant_dir: PathBuf,
 
     #[arg(long, env = "BUILDSYS_ROOT_DIR")]
     pub(crate) root_dir: PathBuf,
@@ -79,6 +80,9 @@ pub(crate) struct Common {
 
     #[arg(long, env = "TLPRIVATE_TOOLCHAIN")]
     pub(crate) toolchain: String,
+
+    #[arg(long, env = "TWOLITER_TOOLS_DIR")]
+    pub(crate) tools_dir: PathBuf,
 }
 
 /// Build RPMs from a spec file and sources.
@@ -89,6 +93,21 @@ pub(crate) struct BuildPackageArgs {
 
     #[arg(long, env = "BUILDSYS_VARIANT")]
     pub(crate) variant: String,
+
+    #[arg(long, env = "BUILDSYS_VARIANT_PLATFORM")]
+    pub(crate) variant_platform: String,
+
+    #[arg(long, env = "BUILDSYS_VARIANT_RUNTIME")]
+    pub(crate) variant_runtime: String,
+
+    #[arg(long, env = "BUILDSYS_VARIANT_FAMILY")]
+    pub(crate) variant_family: String,
+
+    #[arg(long, env = "BUILDSYS_VARIANT_FLAVOR")]
+    pub(crate) variant_flavor: String,
+
+    #[arg(long, env = "PUBLISH_REPO")]
+    pub(crate) publish_repo: String,
 
     #[arg(long, env = "BUILDSYS_SOURCES_DIR")]
     pub(crate) sources_dir: PathBuf,
