@@ -64,6 +64,7 @@ pub(crate) async fn exec(cmd: &mut Command, quiet: bool) -> Result<Option<String
 pub(crate) mod fs {
     use anyhow::{Context, Result};
     use std::fs::Metadata;
+    use std::io::ErrorKind;
     use std::path::{Path, PathBuf};
     use tokio::fs;
 
@@ -130,10 +131,19 @@ pub(crate) mod fs {
     }
 
     pub(crate) async fn remove_dir_all(path: impl AsRef<Path>) -> Result<()> {
-        fs::remove_dir_all(path.as_ref()).await.context(format!(
-            "Unable to remove directory (remove_dir_all) '{}'",
-            path.as_ref().display()
-        ))
+        match fs::remove_dir_all(path.as_ref()).await {
+            Ok(_) => Ok(()),
+            Err(e) => match e.kind() {
+                ErrorKind::NotFound => {
+                    // not a problem, the directory isn't there
+                    Ok(())
+                }
+                _ => Err(e).context(format!(
+                    "Unable to remove directory (remove_dir_all) '{}'",
+                    path.as_ref().display()
+                )),
+            },
+        }
     }
 
     pub(crate) async fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<()> {
